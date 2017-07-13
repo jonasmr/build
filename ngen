@@ -5,6 +5,8 @@ cpps = set()
 mms = set()
 cs = set()
 objs = set()
+objraw = set()
+target = "out"
 paramz = {};
 
 paths_processed = set()
@@ -24,8 +26,14 @@ def ProcessPath(d):
 
 
 def fixname(name, ext):
-
-	objname = "$builddir/" + os.path.basename(name)[:-len(ext)] + ".o"
+	rawbase = os.path.basename(name)[:-len(ext)]
+	raw = rawbase
+	idx = 0
+	while raw in objraw:
+		raw = "%s_%d" %(rawbase, idx)
+		idx = idx + 1
+	objraw.add(raw)
+	objname = "$builddir/" + raw + ".o"
 	return objname, name
 
 with open("ngen.cfg") as f:
@@ -39,6 +47,8 @@ with open("ngen.cfg") as f:
 				command = command[:idx]
 				if(command == "dir"):
 					ProcessPath(arg)
+				if(command == "target"):
+					target = arg.strip()
 			else:
 				idx = re.search(r'[ =]', line).start()
 				i = line.find('=')
@@ -76,12 +86,12 @@ with open("build.ninja", "w") as f:
 		objs.add(objname)
 		f.write("build %s: cxx %s\n" % (objname, fullname))
 
-	f.write("build out: link")
+	f.write("build %s: link" %(target))
 	for obj in objs:
 		f.write(" " + obj)
 	f.write("\n\n")
 
-	f.write("default out\n\n");
+	f.write("default %s\n\n" %(target));
 
 
 
