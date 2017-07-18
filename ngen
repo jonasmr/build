@@ -5,8 +5,10 @@ cpps = set()
 mms = set()
 cs = set()
 objs = set()
+metals = set()
 objraw = set()
-target = "out"
+target = ""
+targets = set()
 paramz = {};
 
 paths_processed = set()
@@ -20,9 +22,9 @@ def ProcessPath(d):
 				cpps.add(p)
 				print "CPP " + p
 			if p.endswith("mm"):
-				print "mm " + p
-			if p.endswith("c"):
-				print "c " + p
+				mms.add(p)
+			if p.endswith("metal"):
+				metals.add(p)
 
 
 def fixname(name, ext):
@@ -33,7 +35,7 @@ def fixname(name, ext):
 		raw = "%s_%d" %(rawbase, idx)
 		idx = idx + 1
 	objraw.add(raw)
-	objname = "$builddir/" + raw + ".o"
+	objname = "$builddir/" + raw
 	return objname, name
 
 with open("ngen.cfg") as f:
@@ -49,6 +51,7 @@ with open("ngen.cfg") as f:
 					ProcessPath(arg)
 				if(command == "target"):
 					target = arg.strip()
+					targets.add(arg.strip())
 			else:
 				idx = re.search(r'[ =]', line).start()
 				i = line.find('=')
@@ -75,23 +78,67 @@ with open("build.ninja", "w") as f:
   deps = gcc
 
 """)
+	f.write("""rule mxx
+  command = $cxx -MMD -MT $out -MF $out.d $cflags $mmflags -c $in -o $out
+  description = CXX $out
+  depfile = $out.d
+  deps = gcc
+
+""")
 
 	f.write("""rule link
   command = $cxx $ldflags -o $out $in $libs
   description = LINK $out
 
 """)
+	f.write("""rule metal
+  command = xcrun -sdk macosx metal $in -o $out 
+  description = METAL $out
+
+""")
+
+	f.write("""rule metallib
+  command = xcrun -sdk macosx metallib $in -o $out 
+  description = METAL $out
+
+""")
+
+
+	f.write("""rule ngen
+  command = ngen
+
+""")
+
+
+
 	for v in cpps:
 		objname, fullname = fixname(v, ".cpp")
-		objs.add(objname)
-		f.write("build %s: cxx %s\n" % (objname, fullname))
+		objs.add(objname+".o")
+		f.write("build %s: cxx %s\n" % (objname+".o", fullname))
+	for v in mms:
+		objname, fullname = fixname(v, ".mm")
+		objs.add(objname+".o")
+		f.write("build %s: mxx %s\n" % (objname+".o", fullname))
+
+	for v in metals:
+		objname, fullname = fixname(v, ".metal")
+		f.write("build %s: metal %s\n" % (objname+".air", fullname))
+		f.write("build %s: metallib %s\n" % (objname+".metallib", objname+".air"))
+		targets.add(objname+".metallib")
+
 
 	f.write("build %s: link" %(target))
 	for obj in objs:
 		f.write(" " + obj)
 	f.write("\n\n")
 
-	f.write("default %s\n\n" %(target));
+	f.write("build build.ninja: ngen ngen.cfg\n\n");
+
+
+	f.write("default build.ninja " );
+	for s in targets:
+		f.write(" " + s)
+	f.write("\n\n")
 
 
 
