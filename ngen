@@ -4,6 +4,7 @@ import re
 cpps = set()
 mms = set()
 cs = set()
+asms = set()
 objs = set()
 metals = set()
 objraw = set()
@@ -25,6 +26,8 @@ def ProcessPath(d):
 				mms.add(p)
 			if p.endswith("metal"):
 				metals.add(p)
+			if p.endswith("s"):
+				asms.add(p)
 
 
 def fixname(name, ext):
@@ -78,6 +81,13 @@ with open("build.ninja", "w") as f:
   deps = gcc
 
 """)
+
+	f.write("""rule asm
+  command = as -masm=intel $in -o $out
+  description = ASM $out
+
+""")
+
 	f.write("""rule mxx
   command = $cxx -MMD -MT $out -MF $out.d $cflags $mmflags -c $in -o $out
   description = CXX $out
@@ -119,6 +129,11 @@ with open("build.ninja", "w") as f:
 		objname, fullname = fixname(v, ".mm")
 		objs.add(objname+".o")
 		f.write("build %s: mxx %s\n" % (objname+".o", fullname))
+
+	for v in asms:
+		objname, fullname = fixname(v, ".s")
+		objs.add(objname+".o")
+		f.write("build %s: asm %s\n" % (objname+".o", fullname))
 
 	for v in metals:
 		objname, fullname = fixname(v, ".metal")
